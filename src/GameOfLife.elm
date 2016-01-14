@@ -16,7 +16,8 @@ type alias NeighborhoodGrid = Array2 (Alive, Neighborhood)
 
 evolve : Grid -> Grid
 evolve grid =
-  Grid.map (applyRules rules) (neighborhood grid)
+  Grid.fromArray2 <|
+    Array2.map (applyRules rules) (neighborhood grid)
 
 
 neighborhood : Grid -> NeighborhoodGrid
@@ -24,18 +25,18 @@ neighborhood grid =
   let
     locs = List.map (,) [0, 1, -1] `andMap` [0, 1, -1] |> List.drop 1
 
-    getRel (c, r) (x, y) =
+    getRel (c, r) (x, y) grid =
       Grid.get (r - y, c - x) grid
 
-    neighbors from alive =
-      \rows ->
-        List.map (getRel from) locs
-          |> Maybe.Extra.filter
-          |> List.map ((,) 1)
-          |> (,) alive
+    neighbors from alive grid =
+      List.map (\rel -> getRel from rel grid) locs
+        |> Maybe.Extra.filter
+        |> List.map ((,) 1)
+        |> (,) alive
   in
      grid
-      |> Grid.indexedMap neighbors
+      |> Grid.toArray2
+      |> Array2.indexedMap neighbors
       |> Array2.map (\f -> f grid)
 
 

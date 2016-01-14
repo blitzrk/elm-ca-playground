@@ -1,8 +1,9 @@
 module Grid
-  ( Grid, Shape, Dim(..), Op(..)
+  ( Grid, Toggle, Shape, Dim(..), Op(..)
   , empty
   , init
   , fromArray2
+  , toArray2
   , map
   , indexedMap
   , get
@@ -47,9 +48,13 @@ init rows cols =
 
 
 fromArray2 : Array2 Bool -> Grid
-fromArray2 array2
-  = Grid array2
+fromArray2 array2 =
+  Grid array2
 
+
+toArray2 : Grid -> Array2 Bool
+toArray2 (Grid grid) =
+  grid
 
 map : (Bool -> Bool) -> Grid -> Grid
 map fn (Grid grid) =
@@ -151,8 +156,11 @@ draw shape fgColor bgColor gridColor ((Grid grid) as g) =
     drawCell row col alive =
       spacer shape.cellW shape.cellH
         |> Element.color (if alive then fgColor else bgColor)
-        |> Input.clickable (Signal.message click.address <| At (row, col) (not alive))
-        |> Input.hoverable (Signal.message hover.address << always (At (row,col) (not alive)))
+        |> Input.clickable (Signal.message click.address (row, col, not alive))
+        |> Input.hoverable (Signal.message hover.address << 
+                            \enter -> if enter
+                              then Just (row, col, not alive)
+                              else Nothing)
 
     drawRow n =
       flow right <<
@@ -165,17 +173,23 @@ draw shape fgColor bgColor gridColor ((Grid grid) as g) =
 toggles : Signal Toggle
 toggles =
   Signal.merge click.signal <|
-    Signal.map2 (\down tog -> if down then tog else None)
-      Mouse.isDown
-      hover.signal
+    Signal.filterMap identity (-1, -1, False) <|
+      Signal.sampleOn hover.signal <|
+        Signal.map2 (\down tog -> if down then tog else Nothing)
+          Mouse.isDown
+          hover.signal
 
 
 -- Helpers for interaction
 
-type Toggle = None | At (Int, Int) Bool
+type Action = Maybe (Int, Int, Bool)
 
+type alias Toggle = (Int, Int, Bool)
+
+click : Signal.Mailbox Toggle
 click =
-  Signal.mailbox <| At (-1, -1) False
+  Signal.mailbox (-1, -1, False)
 
+hover : Signal.Mailbox (Maybe Toggle)
 hover =
-  Signal.mailbox <| At (-1, -1) False
+  Signal.mailbox Nothing

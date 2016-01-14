@@ -47,11 +47,11 @@ update action ({grid, history, seed} as model) =
     Step      -> transform <| evolve
     IncRow    -> transform <| Grid.alter Row Push
     IncCol    -> transform <| Grid.alter Col Push
-    DecRow 	  -> transform <| Grid.alter Row Pop
+    DecRow    -> transform <| Grid.alter Row Pop
     DecCol    -> transform <| Grid.alter Col Pop
-    Clear  	  -> transform <| Grid.clear
+    Clear     -> transform <| Grid.clear
     Generate  -> transformWithSeed <| Grid.randomize seed
-    Toggle (r, c, a) -> transform <| Grid.update (r, c) a
+    Toggle (r, c, a) -> transform <| Grid.set (r, c) a
     otherwise -> model
 
 
@@ -98,7 +98,7 @@ view grid state speed =
       [ button
         ([ class "pure-button"
          , buttonStyle []
-         , onClick controls.address action
+         , onClick form.address action
          ] ++ attr
         )[ text txt ]
       ]
@@ -131,7 +131,7 @@ view grid state speed =
     d = disabled True
 
     formElem =
-      toElement (gridShape.topX - 1) gridShape.topY <|
+      toElement 160 1 <|
         div
           [ style
             [ "display" => "flex"
@@ -150,10 +150,20 @@ view grid state speed =
           , btn []   DecRow   "- Row"
           , btn []   DecCol   "- Col"
           ]
+
+    transform x y el =
+      flow right
+        [ spacer x y
+        , flow down
+          [ spacer x y
+          , el
+          ]
+        ]
   in
     flow right
       [ formElem
       , Grid.draw gridShape black white darkGrey grid
+        |> transform 2 2
       ]
 
 
@@ -170,7 +180,7 @@ type alias Model =
 
 game : Signal Model
 game =
-  Signal.foldp update defaultGame inputSignal
+  Signal.foldp update defaultGame actions
 
 
 defaultGame : Model
@@ -194,20 +204,6 @@ defaultGame =
 
 -- INPUT
 
-type alias Input =
-  { action : Action
-  , position : (Int, Int)
-  }
-
-
-inputSignal : Signal Input
-inputSignal =
-  Signal.sampleOn controls.signal <|
-    Signal.map2 Input
-      controls.signal
-      Mouse.position
-
-
 type Action
   = None   | Step   
   | Clear  | Generate
@@ -217,11 +213,17 @@ type Action
   | Toggle (Int, Int, Bool)
 
 
-controls : Signal.Mailbox Action
-controls =
+form : Signal.Mailbox Action
+form =
   Signal.mailbox None
+
+
+actions : Signal Action
+actions =
+  Signal.merge form.signal <|
+    Signal.map Toggle Grid.toggles
 
 
 port animate : Signal (Task x ())
 port animate =
-  Animation.animate controls.address Step
+  Animation.animate form.address Step
