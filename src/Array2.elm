@@ -1,21 +1,43 @@
 module Array2
   ( Array2
+  , dims
   , get
+  , set
   , map
   , indexedMap
   , update
   ) where
 
 import Array exposing (Array)
-import Maybe exposing (andThen)
+import Maybe exposing (withDefault, andThen)
 
 
 type alias Array2 a = Array (Array a)
 
 
+dims : Array2 a -> (Int, Int)
+dims array2 =
+  let
+    y = Array.length array2
+    x = array2
+      |> Array.get 0
+      |> Maybe.map Array.length
+      |> Maybe.withDefault 0
+  in
+    (x, y)
+
+
 get : (Int, Int) -> Array2 a -> Maybe a
 get (row, col) grid =
   Array.get row grid `andThen` Array.get col
+
+
+set : (Int, Int) -> a -> Array2 a -> Array2 a
+set (row, col) to =
+  Array.indexedMap <| \r arr ->
+    if r == row
+      then (Array.set col to arr)
+      else arr
 
 
 map : (a -> b) -> Array2 a -> Array2 b

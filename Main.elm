@@ -1,3 +1,5 @@
+module Playground where
+
 import Animation
 import Array
 import Array2 exposing (Array2)
@@ -25,14 +27,9 @@ main =
 
 -- UPDATE
 
-update : Input -> Model -> Model
-update ({action, position} as input) ({grid, history, seed} as model) =
+update : Action -> Model -> Model
+update action ({grid, history, seed} as model) =
   let
-    action' =
-      if action == Toggle && not (Grid.isInside position gridShape grid)
-        then None
-        else action
-
     transform fn =
       let grid' = fn grid
           (undos, redos) = history
@@ -44,17 +41,17 @@ update ({action, position} as input) ({grid, history, seed} as model) =
           (undos, redos) = history
           history' = (grid::undos, [])
       in  { model | grid = grid', history = history', seed = seed' }
-  in case action' of
-    Undo -> undo model
-    Redo -> redo model
-    Toggle -> transform <| Grid.toggle position gridShape
-    Step   -> transform evolve
-    IncRow -> transform <| Grid.alter Row Push
-    IncCol -> transform <| Grid.alter Col Push
-    DecRow -> transform <| Grid.alter Row Pop
-    DecCol -> transform <| Grid.alter Col Pop
-    Clear  -> transform Grid.clear
-    Generate -> transformWithSeed <| Grid.randomize seed
+  in case action of
+    Undo      -> undo model
+    Redo      -> redo model
+    Step      -> transform <| evolve
+    IncRow    -> transform <| Grid.alter Row Push
+    IncCol    -> transform <| Grid.alter Col Push
+    DecRow 	  -> transform <| Grid.alter Row Pop
+    DecCol    -> transform <| Grid.alter Col Pop
+    Clear  	  -> transform <| Grid.clear
+    Generate  -> transformWithSeed <| Grid.randomize seed
+    Toggle (r, c, a) -> transform <| Grid.update (r, c) a
     otherwise -> model
 
 
@@ -83,7 +80,7 @@ redo ({grid, history, seed} as model) =
 
 (=>) = (,)
 
-gridShape = Grid.Shape 160 1 25 25 1
+gridShape = Grid.Shape 25 25 1
 
 view : Grid -> Animation.State -> Animation.Speed -> Element
 view grid state speed =
@@ -101,7 +98,7 @@ view grid state speed =
       [ button
         ([ class "pure-button"
          , buttonStyle []
-         , onClick formInput.address action
+         , onClick controls.address action
          ] ++ attr
         )[ text txt ]
       ]
@@ -155,12 +152,7 @@ view grid state speed =
           ]
   in
     flow right
-      [ toElement 0 0 <|
-          node "link"
-            [ rel "stylesheet"
-            , href "http://yui.yahooapis.com/pure/0.6.0/pure-min.css"
-            ] []
-      , formElem
+      [ formElem
       , Grid.draw gridShape black white darkGrey grid
       ]
 
@@ -197,7 +189,7 @@ defaultGame =
         , [do 3 False, do 3 True, do 3 False, do 3 True, do 3 False]
         ]
   in
-      Model pattern ([], []) (Random.initialSeed 0)
+      Model (Grid.fromArray2 pattern) ([], []) (Random.initialSeed 0)
 
 
 -- INPUT
@@ -208,35 +200,28 @@ type alias Input =
   }
 
 
-clickAction : Signal Action
-clickAction =
-  Signal.merge
-    (Signal.map (always Toggle) Mouse.clicks)
-    formInput.signal
-
-
 inputSignal : Signal Input
 inputSignal =
-  Signal.sampleOn clickAction <|
+  Signal.sampleOn controls.signal <|
     Signal.map2 Input
-      clickAction
+      controls.signal
       Mouse.position
 
 
 type Action
-  = None
-  | Step   | Toggle
+  = None   | Step   
   | Clear  | Generate
   | Undo   | Redo
   | IncRow | IncCol
   | DecRow | DecCol
+  | Toggle (Int, Int, Bool)
 
 
-formInput : Signal.Mailbox Action
-formInput =
+controls : Signal.Mailbox Action
+controls =
   Signal.mailbox None
 
 
 port animate : Signal (Task x ())
 port animate =
-  Animation.animate formInput.address Step
+  Animation.animate controls.address Step
